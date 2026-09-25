@@ -153,3 +153,22 @@ h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
 .streaks li { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--raised); }
 .streaks li:last-child { border-bottom: 0; }
 @media (max-width: 420px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Zwei Seiten per Wischen (FR-018), Wochenzeile (FR-017) */
+.dots { display: flex; justify-content: center; gap: 8px; margin: -10px 0 12px; }
+.dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 4px; background: var(--raised); cursor: pointer; transition: width .2s, background .2s; }
+.dots button[aria-current="true"] { width: 22px; background: var(--muted); }
+.dots button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.pages {
+  display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
+  margin: 0 -14px; -webkit-overflow-scrolling: touch;
+}
+.pages::-webkit-scrollbar { display: none; }
+/* Mindestens bildschirmhoch, damit man auch unter der letzten Karte wischen kann */
+.page { flex: 0 0 100%; min-width: 0; padding: 0 14px; scroll-snap-align: start; scroll-snap-stop: always; min-height: calc(100vh - 90px); min-height: calc(100dvh - 90px); }
+.grid.week-row { grid-template-rows: var(--cell); }
+.seg { display: inline-flex; background: var(--raised); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { border: 0; border-radius: 9px; padding: 8px 14px; background: transparent; color: var(--muted); font: 700 13.5px "Manrope", system-ui, sans-serif; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--text); }
+.seg button:disabled { cursor: default; }

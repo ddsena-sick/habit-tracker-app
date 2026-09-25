@@ -4,10 +4,11 @@ import { WEEKDAYS, todayIn } from '../logic.js';
 import { esc, rgba, PALETTE, errorText, toast } from '../ui.js';
 
 const hasEntries = (data, id) => Object.keys(data.entries[id] || {}).length > 0;
+const weeklyH = h => h.rhythm === 'wöchentlich';
 const summary = h => [
-  `Ziel ${h.target}`,
-  h.weekdays && h.weekdays.length ? h.weekdays.map(i => WEEKDAYS[i]).join(' ') : 'täglich',
-  h.challengeDays ? `Challenge ${h.challengeDays} Tage` : ''
+  `Ziel ${h.target} pro ${weeklyH(h) ? 'Woche' : 'Tag'}`,
+  weeklyH(h) ? 'wöchentlich' : h.weekdays && h.weekdays.length ? h.weekdays.map(i => WEEKDAYS[i]).join(' ') : 'täglich',
+  h.challengeDays ? `Challenge ${h.challengeDays} ${weeklyH(h) ? 'Wochen' : 'Tage'}` : ''
 ].filter(Boolean).join(' · ');
 
 // ---------- Liste
@@ -84,11 +85,13 @@ async function move(ctx, active, i, dir) {
 
 // ---------- Formular
 
-export function renderForm(ctx, root, id) {
+export function renderForm(ctx, root, id, presetWeekly = false) {
   const { data } = ctx.state;
   const h = id ? data.habits.find(x => x.id === id) : null;
   if (id && !h) { root.innerHTML = '<a class="back" href="#/routinen">‹ Routinen</a><div class="state">Diese Routine gibt es nicht (mehr).</div>'; return; }
-  const v = h || { name: '', description: '', icon: '✅', color: PALETTE[data.habits.length % PALETTE.length], target: 1, steps: [], weekdays: [], challengeDays: null, challengeStart: null };
+  const v = h || { name: '', description: '', icon: '✅', color: PALETTE[data.habits.length % PALETTE.length], target: 1, steps: [], weekdays: [], challengeDays: null, challengeStart: null, rhythm: presetWeekly ? 'wöchentlich' : 'täglich' };
+  let rhythm = v.rhythm === 'wöchentlich' ? 'wöchentlich' : 'täglich';
+  const rhythmLocked = !!h && hasEntries(data, h.id);
   const palette = PALETTE.includes(v.color) ? PALETTE : PALETTE.concat(v.color);
   const deletable = h && !hasEntries(data, h.id);
 
@@ -96,21 +99,27 @@ export function renderForm(ctx, root, id) {
     <a class="back" href="#/routinen">‹ Routinen</a>
     <header><div><h1>${h ? 'Bearbeiten' : 'Neue Routine'}</h1>${h ? `<div class="date">ID ${esc(h.id)} (bleibt fest)</div>` : ''}</div></header>
     <form class="card" id="form" novalidate>
+      <div class="field"><span>Rhythmus</span>
+        <div class="seg" role="group" aria-label="Rhythmus">
+          <button type="button" data-rhythm="täglich" aria-pressed="${rhythm === 'täglich'}" ${rhythmLocked ? 'disabled' : ''}>Täglich</button>
+          <button type="button" data-rhythm="wöchentlich" aria-pressed="${rhythm === 'wöchentlich'}" ${rhythmLocked ? 'disabled' : ''}>Wöchentlich</button>
+        </div>
+        <div class="hint">${rhythmLocked ? 'Fest, weil die Routine schon Einträge hat.' : 'Wochenroutinen stehen auf der Seite „Diese Woche“ (von „Heute“ nach links wischen).'}</div></div>
       <label class="field"><span>Name</span><input name="name" maxlength="60" required value="${esc(v.name)}"></label>
       <label class="field"><span>Beschreibung</span><input name="description" maxlength="200" value="${esc(v.description)}"></label>
       <div class="two">
         <label class="field"><span>Icon (Emoji)</span><input name="icon" maxlength="16" value="${esc(v.icon)}"></label>
-        <label class="field"><span>Ziel pro Tag</span><input name="target" type="number" min="1" max="20" inputmode="numeric" value="${v.target}">
-          <div class="hint">Gilt ab heute; vergangene Tage behalten ihr Ziel.</div></label>
+        <label class="field"><span id="target-label">Ziel pro Tag</span><input name="target" type="number" min="1" max="20" inputmode="numeric" value="${v.target}">
+          <div class="hint" id="target-hint">Gilt ab heute; vergangene Tage behalten ihr Ziel.</div></label>
       </div>
       <div class="field"><span>Farbe</span><div class="swatches">${palette.map(c =>
         `<button type="button" class="swatch" data-color="${c}" style="background:${c}" aria-label="Farbe ${c}" aria-pressed="${c === v.color}"></button>`).join('')}</div></div>
       <label class="field"><span>Schritte (optional, einer pro Zeile)</span><textarea name="steps" rows="3">${esc((v.steps || []).join('\n'))}</textarea>
-        <div class="hint">Anzahl = Ziel pro Tag, z. B. vier Schritte bei Ziel 4.</div></label>
-      <div class="field"><span>Fällig an (keiner gewählt = täglich)</span><div class="toggles">${WEEKDAYS.map((n, i) =>
+        <div class="hint">Anzahl = Ziel, z. B. vier Schritte bei Ziel 4.</div></label>
+      <div class="field" id="weekdays-field"><span>Fällig an (keiner gewählt = täglich)</span><div class="toggles">${WEEKDAYS.map((n, i) =>
         `<button type="button" class="toggle" data-day="${i}" aria-pressed="${(v.weekdays || []).includes(i)}">${n}</button>`).join('')}</div></div>
       <div class="two">
-        <label class="field"><span>Challenge (Tage, optional)</span><input name="challengeDays" type="number" min="0" max="3650" inputmode="numeric" value="${v.challengeDays || ''}"></label>
+        <label class="field"><span id="challenge-label">Challenge (Tage, optional)</span><input name="challengeDays" type="number" min="0" max="3650" inputmode="numeric" value="${v.challengeDays || ''}"></label>
         <label class="field"><span>Challenge-Start</span><input name="challengeStart" type="date" value="${esc(v.challengeStart || '')}"></label>
       </div>
       <div class="error hidden" id="err"></div>
@@ -128,6 +137,16 @@ export function renderForm(ctx, root, id) {
   const err = root.querySelector('#err');
   const showErr = msg => { err.textContent = msg; err.classList.remove('hidden'); };
   let color = v.color;
+  const applyRhythm = () => {
+    const w = rhythm === 'wöchentlich';
+    form.querySelectorAll('[data-rhythm]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rhythm === rhythm)));
+    root.querySelector('#target-label').textContent = w ? 'Ziel pro Woche' : 'Ziel pro Tag';
+    root.querySelector('#target-hint').textContent = w ? 'Zum Beispiel 3 für „dreimal pro Woche“. Gilt ab dieser Woche.' : 'Gilt ab heute; vergangene Tage behalten ihr Ziel.';
+    root.querySelector('#challenge-label').textContent = w ? 'Challenge (Wochen, optional)' : 'Challenge (Tage, optional)';
+    root.querySelector('#weekdays-field').classList.toggle('hidden', w);
+  };
+  form.querySelectorAll('[data-rhythm]').forEach(b => b.addEventListener('click', () => { rhythm = b.dataset.rhythm; applyRhythm(); }));
+  applyRhythm();
   form.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', () => {
     color = b.dataset.color;
     form.querySelectorAll('.swatch').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -145,7 +164,8 @@ export function renderForm(ctx, root, id) {
       color,
       target: Number(f.get('target')),
       steps: f.get('steps').split('\n').map(s => s.trim()).filter(Boolean),
-      weekdays: [...form.querySelectorAll('.toggle[aria-pressed="true"]')].map(b => Number(b.dataset.day)),
+      rhythm,
+      weekdays: rhythm === 'wöchentlich' ? [] : [...form.querySelectorAll('.toggle[aria-pressed="true"]')].map(b => Number(b.dataset.day)),
       challengeDays: f.get('challengeDays') ? Number(f.get('challengeDays')) : null,
       challengeStart: f.get('challengeStart') || (f.get('challengeDays') ? todayIn() : null)
     };

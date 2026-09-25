@@ -1,5 +1,5 @@
 // Beispieldaten und Schein-API für lokale Tests (?mock). Keine echten Daten.
-import { todayIn, addDays, weekday } from './logic.js';
+import { todayIn, addDays, weekday, weekStart } from './logic.js';
 
 export function sampleData(today = todayIn()) {
   const habits = [
@@ -7,6 +7,8 @@ export function sampleData(today = todayIn()) {
     { id: 'dehnen', name: 'Dehnen', description: 'Viermal am Tag kurz dehnen', icon: '🧘', color: '#a77bf3', target: 4, steps: ['Morgens', 'Mittags', 'Abends', 'Vor dem Schlafen'], weekdays: [], challengeDays: 30, challengeStart: addDays(today, -20), order: 2, status: 'aktiv', created: addDays(today, -60), archivedAt: null },
     { id: 'trinken', name: 'Zwei Liter trinken', description: 'Flasche morgens bereitstellen', icon: '💧', color: '#3d9bff', target: 1, steps: [], weekdays: [], challengeDays: null, challengeStart: null, order: 3, status: 'aktiv', created: addDays(today, -150), archivedAt: null },
     { id: 'stehen', name: 'Stehend arbeiten', description: 'Mindestens die Hälfte der Bürozeit', icon: '🧍', color: '#ffb020', target: 1, steps: [], weekdays: [0, 1, 2, 3, 4], challengeDays: null, challengeStart: null, order: 4, status: 'aktiv', created: addDays(today, -120), archivedAt: null },
+    { id: 'sport', name: 'Sport', description: 'Dreimal pro Woche mindestens 30 Minuten', icon: '🏋️', color: '#2ec4b6', target: 3, steps: [], weekdays: [], challengeDays: 12, challengeStart: addDays(today, -40), order: 6, status: 'aktiv', created: addDays(today, -180), archivedAt: null, rhythm: 'wöchentlich' },
+    { id: 'planung', name: 'Wochenplanung', description: 'Sonntags die Woche planen', icon: '🗓️', color: '#7c83fd', target: 1, steps: [], weekdays: [], challengeDays: null, challengeStart: null, order: 7, status: 'aktiv', created: addDays(today, -120), archivedAt: null, rhythm: 'wöchentlich' },
     { id: 'joggen', name: 'Joggen', description: '', icon: '🏃', color: '#ff6b6b', target: 1, steps: [], weekdays: [], challengeDays: null, challengeStart: null, order: 5, status: 'archiviert', created: addDays(today, -300), archivedAt: addDays(today, -100) }
   ];
   let seed = 42;
@@ -15,6 +17,10 @@ export function sampleData(today = todayIn()) {
   for (const h of habits) {
     entries[h.id] = {};
     const end = h.archivedAt || today;
+    if (h.rhythm === 'wöchentlich') {
+      for (let w = weekStart(h.created); w <= end; w = addDays(w, 7)) if (rnd() < 0.75) entries[h.id][w] = 1 + Math.floor(rnd() * h.target);
+      continue;
+    }
     for (let d = h.created; d <= end; d = addDays(d, 1)) {
       if (h.weekdays.length && !h.weekdays.includes(weekday(d))) continue;
       if (rnd() < 0.72) entries[h.id][d] = h.target > 1 ? 1 + Math.floor(rnd() * h.target) : 1;

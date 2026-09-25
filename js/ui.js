@@ -38,6 +38,7 @@ export function errorText(e) {
     no_token: 'Kein Token eingerichtet',
     has_entries: 'Die Routine hat Einträge und kann nur archiviert werden',
     archived: 'Die Routine ist archiviert',
+    rhythm_locked: 'Der Rhythmus lässt sich nur ändern, solange die Routine keine Einträge hat',
     bad_response: 'Unerwartete Antwort der API'
   };
   return map[e && e.code] || (e && e.message) || 'Unbekannter Fehler';

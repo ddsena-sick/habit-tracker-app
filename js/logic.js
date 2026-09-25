@@ -65,7 +65,8 @@ export function stats(data, h, today) {
 /** Challenge ab festem Start (FR-013): erfüllte Tage seit Start, gedeckelt auf die Dauer. */
 export function challenge(data, h, today) {
   if (!h.challengeDays) return null;
-  const start = h.challengeStart || historyStart(data, h, today);
+  let start = h.challengeStart || historyStart(data, h, today);
+  if (isWeekly(h)) start = addDays(start, -weekday(start)); // ganze Wochen ab dem Montag der Startwoche
   let n = 0;
   for (const d of Object.keys(data.entries[h.id] || {})) if (d >= start && d <= today && isDone(data, h, d)) n++;
   return { start, days: h.challengeDays, done: Math.min(n, h.challengeDays), complete: n >= h.challengeDays };
@@ -121,5 +122,70 @@ export function applyQueue(data, queue) {
   return data;
 }
 
-/** Routinen für "Heute": aktiv und heute fällig, in ihrer Reihenfolge. */
-export const todayHabits = (data, today) => data.habits.filter(h => h.status === 'aktiv' && isDue(h, today));
+// ---------- Wochenroutinen (FR-017, ADR-006): ein Eintrag pro Woche, Schlüssel = Montag
+
+export const isWeekly = h => h.rhythm === 'wöchentlich';
+export const weekStart = d => addDays(d, -weekday(d));
+/** Schlüssel des aktuellen Eintrags: heute bzw. Montag dieser Woche. */
+export const entryKey = (h, today) => (isWeekly(h) ? weekStart(today) : today);
+
+/** Kalenderwoche nach ISO 8601. */
+export function isoWeek(d) {
+  const thu = addDays(weekStart(d), 3);
+  const jan4 = thu.slice(0, 4) + '-01-04';
+  return 1 + Math.round(daysBetween(weekStart(jan4), weekStart(thu)) / 7);
+}
+
+/** Kennzahlen einer Wochenroutine: Serie und Rekord in Wochen, Quote über 12 Wochen. Die laufende Woche bricht nichts. */
+export function weekStats(data, h, today) {
+  const cur = weekStart(today);
+  const start = weekStart(historyStart(data, h, today));
+  const done = w => isDone(data, h, w);
+  let current = 0;
+  let w = done(cur) ? cur : addDays(cur, -7);
+  while (w >= start && done(w)) { current++; w = addDays(w, -7); }
+  let best = 0, run = 0, total = 0;
+  for (let x = start; x <= cur; x = addDays(x, 7)) {
+    if (done(x)) { run++; total++; best = Math.max(best, run); }
+    else if (x !== cur) run = 0;
+  }
+  let done12 = 0;
+  for (let i = 0; i < 12; i++) if (done(addDays(cur, -7 * i))) done12++;
+  return { current, best, total, rate: Math.round(done12 / 12 * 100) };
+}
+
+/** Quote je Monat für Wochenroutinen; eine Woche zählt zum Monat ihres Montags. */
+export function weekMonthRates(data, h, from, to) {
+  const months = new Map();
+  for (let w = weekStart(from); w <= to; w = addDays(w, 7)) {
+    const key = w.slice(0, 7);
+    if (!months.has(key)) months.set(key, { month: key, due: 0, done: 0 });
+    const m = months.get(key);
+    m.due++;
+    if (isDone(data, h, w)) m.done++;
+  }
+  return [...months.values()].reverse().map(m => ({ ...m, rate: m.due ? Math.round(m.done / m.due * 100) : null }));
+}
+
+/** Serien erfüllter Wochen, längste zuerst; die laufende Woche bricht keine Serie. */
+export function weekStreaks(data, h, from, to) {
+  const cur = weekStart(to);
+  const list = [];
+  let run = null;
+  for (let w = weekStart(from); w <= cur; w = addDays(w, 7)) {
+    if (isDone(data, h, w)) {
+      if (!run) run = { start: w, end: w, length: 0 };
+      run.end = w; run.length++;
+    } else if (w !== cur) {
+      if (run) list.push(run);
+      run = null;
+    }
+  }
+  if (run) list.push(run);
+  return list.sort((a, b) => b.length - a.length || (b.end > a.end ? 1 : -1));
+}
+
+/** Routinen für "Heute": aktive, heute fällige Tagesroutinen, in ihrer Reihenfolge. */
+export const todayHabits = (data, today) => data.habits.filter(h => h.status === 'aktiv' && !isWeekly(h) && isDue(h, today));
+/** Routinen für "Diese Woche": aktive Wochenroutinen. */
+export const weekHabits = data => data.habits.filter(h => h.status === 'aktiv' && isWeekly(h));

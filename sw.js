@@ -1,12 +1,12 @@
 // Service Worker: App-Shell stale-while-revalidate, API nie aus dem Cache (NFR-007).
-// 2913d17b629d ersetzt scripts/publish_pwa.sh durch den Quell-Commit; alte Caches fliegen beim activate.
-const VERSION = '2913d17b629d';
+// fb287f514149 ersetzt scripts/publish_pwa.sh durch den Quell-Commit; alte Caches fliegen beim activate.
+const VERSION = 'fb287f514149';
 const CACHE = 'ht-' + VERSION;
 const FONTS = 'ht-fonts';
 const SHELL = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
   'js/app.js', 'js/api.js', 'js/store.js', 'js/logic.js', 'js/ui.js', 'js/version.js',
-  'js/views/today.js', 'js/views/history.js', 'js/views/manage.js', 'js/views/settings.js',
+  'js/views/today.js', 'js/views/week.js', 'js/views/card.js', 'js/views/history.js', 'js/views/manage.js', 'js/views/settings.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'
 ];
 

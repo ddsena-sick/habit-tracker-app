@@ -4,7 +4,7 @@
 import { API_URL, USE_GET } from '../config.js';
 import { createApi } from './api.js';
 import { createStore } from './store.js';
-import { todayIn, nextCount, applyQueue, todayHabits } from './logic.js';
+import { todayIn, nextCount, applyQueue, todayHabits, entryKey } from './logic.js';
 import { toast, errorText } from './ui.js';
 import * as today from './views/today.js';
 import * as history from './views/history.js';
@@ -70,14 +70,15 @@ function route() {
   if (parts[0] === 'einstellungen') return show(null, () => settings.renderSettings(ctx, root));
 
   if (!ctx.state.data) {
-    root.innerHTML = '<div class="state">Lade deine Gewohnheiten …</div>';
+    root.innerHTML = '<div class="state loading">Lade deine Gewohnheiten …</div>';
     ctx.view = null;
     return;
   }
-  if (parts[0] === 'routinen' && parts[1] === 'neu') return show(null, () => manage.renderForm(ctx, root, null));
+  if (parts[0] === 'routinen' && parts[1] === 'neu') return show(null, () => manage.renderForm(ctx, root, null, parts[2] === 'woche'));
   if (parts[0] === 'routinen' && parts[1] === 'bearbeiten') return show(null, () => manage.renderForm(ctx, root, parts[2]));
   if (parts[0] === 'routinen') return show(null, () => manage.renderList(ctx, root));
   if (parts[0] === 'routine') return show(() => history.render(ctx, root, parts[1]), null);
+  ctx.state.page = parts[0] === 'woche' ? 1 : 0;
   return show(() => today.render(ctx, root), null);
 }
 
@@ -92,7 +93,9 @@ function render() {
     const y = window.scrollY;
     ctx.view();
     window.scrollTo(0, y);
-  } else if (!ctx.state.data || !root.firstElementChild || root.querySelector('.state')) {
+  } else if (root.querySelector(':scope > .state.loading')) {
+    // Nur die Ladeanzeige ersetzen. Formulare (Einrichtung, Einstellungen) nie neu
+    // zeichnen – sonst geht Getipptes verloren (Befund Browsertest 2026-09-25).
     route();
   }
 }
@@ -110,11 +113,13 @@ async function refresh() {
       const data = await api.data();
       ctx.state.authError = false;
       ctx.setServerData(data);
+      // Lade- oder Fehleranzeige ersetzen, sobald Daten da sind
+      if (!ctx.view && root.querySelector(':scope > .state')) route();
     } catch (e) {
       if (e.code === 'unauthorized') ctx.state.authError = true;
       if (!ctx.state.data) {
         if (e.code === 'unauthorized') { location.hash = '#/einstellungen'; return; }
-        if (!ctx.view && root.querySelector('.state')) {
+        if (!ctx.view && root.querySelector(':scope > .state.loading')) {
           root.innerHTML = `<div class="state">Daten konnten nicht geladen werden.<br>${errorText(e)}<br><br><a href="#/einstellungen" style="color:inherit">Einstellungen</a></div>`;
         }
         return;
@@ -142,7 +147,7 @@ function cycle(h, date) {
   store.enqueue(h.id, date, next);
   if (navigator.vibrate) navigator.vibrate(8);
   render();
-  if (date === ctx.state.today && next >= h.target) {
+  if (date === entryKey(h, ctx.state.today) && next >= h.target) {
     const btn = root.querySelector(`.card[data-id="${CSS.escape(h.id)}"] .check`);
     if (btn) btn.classList.add('pop');
   }
